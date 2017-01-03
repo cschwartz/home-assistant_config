@@ -34,7 +34,7 @@ class FritzOnlineStatusData:
         import fritzconnection
         self._service = service
         self._action = action
-        self._fritzconnection = fritzconnection.FritzConnection(user=username, password = password)
+        self._fritzconnection = fritzconnection.FritzConnection(user=username, password=password)
 
         self.update()
 
