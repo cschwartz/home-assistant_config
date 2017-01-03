@@ -1,0 +1,10 @@
+phue.conf
+secrets.yaml
+deps
+known_devices.yaml
+home-assistant_v2.db
+home-assistant.log
+.HA_VERSION
+.uuid
+harmony_harmony.conf
+**/__pycache__/

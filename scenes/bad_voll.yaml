@@ -1,0 +1,14 @@
+name: Bad, Voll
+entities:
+  light.badezimmer_wanne:
+    state: on
+    brightness: 254
+    color_temp: 366
+  light.badezimmer_waschbecken:
+    state: on
+    brightness: 254
+    color_temp: 366
+  light.badezimmer_toilette:
+    state: on
+    brightness: 254
+    color_temp: 366

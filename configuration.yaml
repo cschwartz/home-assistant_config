@@ -1,0 +1,87 @@
+homeassistant:
+  name: Home
+  latitude: 49.9111
+  longitude: 8.6573
+  elevation: 129
+  unit_system: metric
+  time_zone: Europe/Berlin
+
+frontend:
+
+http:
+  api_password: !secret http_password
+
+updater:
+
+discovery:
+
+conversation:
+
+history:
+
+logbook:
+
+sun:
+
+light:
+  platform: hue
+  host: 192.168.178.4
+
+light 2:
+  platform: hyperion
+  host: localhost
+  port: 19446
+
+device_tracker:
+  - platform: fritz
+    track_new_devices: False
+
+influxdb:
+  username: home-assistant
+  password: !secret influxdb_password
+
+remote:
+  - platform: harmony
+    name: Harmony
+    host: 192.168.178.31
+
+sensor:
+  - platform: template
+    sensors:
+      remote:
+        value_template: '{{ states.remote.harmony.attributes.current_activity }}'
+        friendly_name: 'Harmony'
+
+sensor 2:
+  - platform: wunderground
+    api_key: !secret wunderground_api_key
+    monitored_conditions:
+      - feelslike_c
+      - precip_today_metric
+      - temp_c
+
+sensor 3:
+  platform: fritz-online-status
+  user: secret! fritz-online-status_user
+  password: secret! fritz-online-status_password
+  metrics:
+    WANDSLInterfaceConfig:
+      GetInfo:
+        NewStatus: Status
+      GetStatisticsTotal:
+        NewLinkRetrain: Link Retrain
+
+group:
+  presence:
+    name: Anwesend
+    entities:
+      - device_tracker.christian_private
+      - device_tracker.iphonevlexandra
+  weather:
+    name: Wetter
+    entities:
+      - sensor.pws_feelslike_c
+      - sensor.pws_precip_today_metric
+      - sensor.pws_temp_c
+
+scene: !include_dir_list scenes
