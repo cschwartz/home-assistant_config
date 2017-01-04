@@ -1,31 +1,35 @@
 from homeassistant.const import TEMP_CELSIUS
-from homeassistant.helpers.entity import Entity
+from homeassistant.components.climate import ClimateDevice
 from homeassistant.util import Throttle
+from homeassistant.util.temperature import convert as convert_temperature
 
 from xml.etree import ElementTree
 import logging
 from datetime import timedelta
 
-from .fritzboxconnector import FritzBoxConnector
+from custom_components.fritzboxconnector import FritzBoxConnector
 
 MIN_TIME_BETWEEN_UPDATES = timedelta(minutes=1)
 
 _LOGGER = logging.getLogger(__name__)
 
 
-class FritzCometThermostatState:
+class FritzBoxThermostatState:
     def __init__(self, description):
         self._description = description
 
-        self._id = self._description.get("identifier")
+        self._ain = self._description.get("identifier")
         self._name = self._description.find("name").text
-        self._present = self._description.get("present") == "1"
+        self._present = self._description.find("present").text == "1"
 
-        if self._present:
-            self._currentTemperature = self._fromDescription("hkr/tist")
-            self._targetTemperature = self._fromDescription("hkr/tsoll")
-            self._comfortTemperature = self._fromDescription("hkr/komfort")
-            self._economyTemperature = self._fromDescription("hkr/absenk")
+        self._currentTemperature = self._fromDescription("hkr/tist")
+        self._targetTemperature = self._fromDescription("hkr/tsoll")
+        self._comfortTemperature = self._fromDescription("hkr/komfort")
+        self._economyTemperature = self._fromDescription("hkr/absenk")
+
+    @property
+    def ain(self):
+        return self._ain
 
     @property
     def is_thermostat(self):
@@ -56,9 +60,12 @@ class FritzCometThermostatState:
         return self._economyTemperature
 
     def _fromDescription(self, name, scale=2.0):
-        return int(self._description.find(name).text) / scale
+        if self._present:
+            return int(self._description.find(name).text) / scale
+        else:
+            return None
 
-class FritzCometThermostatData(FritzBoxConnector):
+class FritzBoxThermostatData(FritzBoxConnector):
     THERMOSTAT_BITMASK = 320
 
     def __init__(self, hostname, username, password):
@@ -75,7 +82,7 @@ class FritzCometThermostatData(FritzBoxConnector):
 
     def createDevice(self, description):
         if int(description.get("functionbitmask")) == self.THERMOSTAT_BITMASK:
-            return FritzCometThermostatState(description)
+            return FritzBoxThermostatState(description)
         else:
             return None
 
@@ -85,6 +92,15 @@ class FritzCometThermostatData(FritzBoxConnector):
     def device(self, searchId):
         return self._devices.get(searchId)
 
+    def setTargetTemperature(self, device, newTargetTemperature):
+        reply = self._get("/webservices/homeautoswitch.lua", params={
+            "switchcmd": "sethkrtsoll",
+            "ain": device.ain,
+            "param": newTargetTemperature * 2.0
+        })
+
+        print(reply)
+
 
 def setup_platform(hass, config, add_devices, discovery_info=None):
     """Setup the sensor platform."""
@@ -92,23 +108,23 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
     user = config["user"]
     password = config["password"]
 
-    fritzBox = FritzCometThermostatData(hostname, user, password)
+    fritzBox = FritzBoxThermostatData(hostname, user, password)
 
     sensors = []
     for deviceId in fritzBox.thermostatIds():
-        sensors.append(FritzCometThermostatSensor(fritzBox, deviceId))
+        sensors.append(FritzBoxThermostat(fritzBox, deviceId))
 
     try:
         fritzBox.update()
     except ValueError as e:
-        _LOGGER.error("Error while updating Comet thermostats: %s", e)
+        _LOGGER.error("Error while updating FritzBox Thermostats: %s", e)
 
     add_devices(sensors)
 
     return True
 
 
-class FritzCometThermostatSensor(Entity):
+class FritzBoxThermostat(ClimateDevice):
     def __init__(self, data, deviceId):
         self._deviceId = deviceId
         self._data = data
@@ -124,12 +140,25 @@ class FritzCometThermostatSensor(Entity):
         return self._device.name
 
     @property
-    def state(self):
-        if self._device.is_present:
-            return self._device.currentTemperature
-        else:
-            return "Offline"
+    def current_temperature(self):
+        return self._device.currentTemperature
 
     @property
-    def unit_of_measurement(self):
+    def target_temperature(self):
+        return self._device.targetTemperature
+
+    @property
+    def min_temp(self):
+        return convert_temperature(self._device.economyTemperature, TEMP_CELSIUS, self.temperature_unit)
+
+    @property
+    def max_temp(self):
+        return convert_temperature(self._device.comfortTemperature, TEMP_CELSIUS, self.temperature_unit)
+
+    def set_temperature(self, **kwargs):
+        newTargetTemperature = kwargs["temperature"]
+        self._data.setTargetTemperature(self._device, newTargetTemperature)
+
+    @property
+    def temperature_unit(self):
         return TEMP_CELSIUS
